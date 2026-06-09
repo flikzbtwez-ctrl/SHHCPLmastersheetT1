@@ -399,10 +399,24 @@ let state = {
   games: [],     // {homeId, awayId, homeG, awayG, type}
 };
 
-// ── LOAD/SAVE ──
-function save(){ try{ localStorage.setItem('shhcpl_state', JSON.stringify(state)); }catch(e){} }
-function load(){ try{ const d=localStorage.getItem('shhcpl_state'); if(d) state=JSON.parse(d); }catch(e){} }
-load();
+// ── LOAD/SAVE (server-backed via Netlify Blobs) ──
+async function save(){
+  try{
+    fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:adminPassword,state})}).catch(()=>{});
+    localStorage.setItem('shhcpl_state',JSON.stringify(state));
+  }catch(e){}
+}
+async function load(){
+  try{
+    const res=await fetch('/api/state');
+    if(res.ok){
+      const data=await res.json();
+      if(data&&(data.players||data.games)){state=data;return;}
+    }
+  }catch(e){}
+  // fallback: use cached localStorage copy
+  try{const d=localStorage.getItem('shhcpl_state');if(d)state=JSON.parse(d);}catch(e){}
+}
 
 // ── COMPUTED STANDINGS ──
 function getStandings(){
@@ -722,12 +736,14 @@ function removePlayer(id){
 
 // ── ADMIN AUTH ──
 let adminLoggedIn=false;
+let adminPassword='';
 function openAdmin(){ document.getElementById('admin-overlay').classList.add('open'); }
 function closeAdmin(){ document.getElementById('admin-overlay').classList.remove('open'); }
 function doLogin(){
   const pw=document.getElementById('admin-pw-input').value;
   if(pw==='SHHCPLstaff1111'){
     adminLoggedIn=true;
+    adminPassword=pw;
     document.getElementById('admin-login').style.display='none';
     document.getElementById('admin-panel').style.display='block';
     populateSelects();
@@ -761,7 +777,7 @@ function showToast(msg){
 
 // ── RENDER ALL ──
 function renderAll(){ renderStandings(); renderTeams(); renderStats(); }
-renderAll();
+(async()=>{ await load(); renderAll(); })();
 
 </script>
 </body>
